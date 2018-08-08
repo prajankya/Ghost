@@ -7,6 +7,36 @@ var MarkdownIt = require('markdown-it'),
         .use(require('markdown-it-footnote'))
         .use(require('markdown-it-lazy-headers'))
         .use(require('markdown-it-mark'))
+        .use(require('markdown-it-responsive'), {
+            responsive: {
+                'srcset': {
+                    '*': [{
+                        width: 200,
+                        rename: {
+                            suffix: '-200_1x'
+                        }
+                    }, {
+                        width: 600,
+                        rename: {
+                            suffix: '-600_1x'
+                        }
+                    }, {
+                        width: 900,
+                        rename: {
+                            suffix: '-900_1x'
+                        }
+                    }, {
+                        width: 1440,
+                        rename: {
+                            suffix: '-1440_1x'
+                        }
+                    }]
+                },
+                'sizes': {
+                    'header-*': '(min-width: 800px) 50vw, 100vw'
+                }
+            }
+        })
         .use(function namedHeaders(md) {
             // match legacy Showdown IDs
             var slugify = function (inputString, usedHeaders) {
