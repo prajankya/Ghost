@@ -7,28 +7,28 @@ var MarkdownIt = require('markdown-it'),
         .use(require('markdown-it-footnote'))
         .use(require('markdown-it-lazy-headers'))
         .use(require('markdown-it-mark'))
-        .use(require('@GerHobbelt/markdown-it-responsive'), {
+        .use(require('@prajankya/markdown-it-responsive'), {
             responsive: {
                 'srcset': {
                     '*': [{
                         width: 200,
                         rename: {
-                            suffix: '-200_1x'
+                            suffix: '-200'
                         }
                     }, {
                         width: 600,
                         rename: {
-                            suffix: '-600_1x'
+                            suffix: '-600'
                         }
                     }, {
                         width: 900,
                         rename: {
-                            suffix: '-900_1x'
+                            suffix: '-900'
                         }
                     }, {
                         width: 1440,
                         rename: {
-                            suffix: '-1440_1x'
+                            suffix: '-1440'
                         }
                     }]
                 },
