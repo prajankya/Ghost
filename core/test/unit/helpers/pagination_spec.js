@@ -7,7 +7,7 @@ var should = require('should'),
 
 describe('{{pagination}} helper', function () {
     before(function (done) {
-        hbs.express3({partialsDir: [configUtils.config.get('paths').helperTemplates]});
+        hbs.express4({partialsDir: [configUtils.config.get('paths').helperTemplates]});
 
         hbs.cachePartials(function () {
             done();
@@ -28,7 +28,7 @@ describe('{{pagination}} helper', function () {
             return function () {
                 helpers.pagination.call(data);
             };
-        }, expectedMessage = 'The {{pagination}} helper was used outside of a paginated context. See https://themes.ghost.org/v1.23.0/docs/pagination.';
+        }, expectedMessage = 'The {{pagination}} helper was used outside of a paginated context. See https://themes.ghost.org/docs/pagination.';
 
         runHelper('not an object').should.throwError(expectedMessage);
         runHelper(function () {
@@ -122,7 +122,7 @@ describe('{{pagination}} helper', function () {
 
 describe('{{pagination}} helper with custom template', function () {
     before(function (done) {
-        hbs.express3({partialsDir: [path.resolve(configUtils.config.get('paths').corePath, 'test/unit/helpers/test_tpl')]});
+        hbs.express4({partialsDir: [path.resolve(configUtils.config.get('paths').corePath, 'test/unit/helpers/test_tpl')]});
 
         hbs.cachePartials(function () {
             done();
