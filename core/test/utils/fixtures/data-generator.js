@@ -37,15 +37,16 @@ DataGenerator.Content = {
             id: ObjectId.generate(),
             title: 'Ghostly Kitchen Sink',
             slug: 'ghostly-kitchen-sink',
-            mobiledoc: DataGenerator.markdownToMobiledoc('<h1>HTML Ipsum Presents</h1><p><strong>Pellentesque habitant morbi tristique</strong> senectus et netus et malesuada fames ac turpis egestas. Vestibulum tortor quam, feugiat vitae, ultricies eget, tempor sit amet, ante. Donec eu libero sit amet quam egestas semper. <em>Aenean ultricies mi vitae est.</em> Mauris placerat eleifend leo. Quisque sit amet est et sapien ullamcorper pharetra. Vestibulum erat wisi, condimentum sed, <code>commodo vitae</code>, ornare sit amet, wisi. Aenean fermentum, elit eget tincidunt condimentum, eros ipsum rutrum orci, sagittis tempus lacus enim ac dui. <a href=\\\"#\\\">Donec non enim</a> in turpis pulvinar facilisis. Ut felis.</p><h2>Header Level 2</h2><ol><li>Lorem ipsum dolor sit amet, consectetuer adipiscing elit.</li><li>Aliquam tincidunt mauris eu risus.</li></ol><blockquote><p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vivamus magna. Cras in mi at felis aliquet congue. Ut a est eget ligula molestie gravida. Curabitur massa. Donec eleifend, libero at sagittis mollis, tellus est malesuada tellus, at luctus turpis elit sit amet quam. Vivamus pretium ornare est.</p></blockquote><h3>Header Level 3</h3><ul><li>Lorem ipsum dolor sit amet, consectetuer adipiscing elit.</li><li>Aliquam tincidunt mauris eu risus.</li></ul><pre><code>#header h1 a{display: block;width: 300px;height: 80px;}</code></pre>'),
-            published_at: new Date('2015-01-02')
+            mobiledoc: DataGenerator.markdownToMobiledoc('<h1>HTML Ipsum Presents</h1><img src="/content/images/lol.jpg"><p><strong>Pellentesque habitant morbi tristique</strong> senectus et netus et malesuada fames ac turpis egestas. Vestibulum tortor quam, feugiat vitae, ultricies eget, tempor sit amet, ante. Donec eu libero sit amet quam egestas semper. <em>Aenean ultricies mi vitae est.</em> Mauris placerat eleifend leo. Quisque sit amet est et sapien ullamcorper pharetra. Vestibulum erat wisi, condimentum sed, <code>commodo vitae</code>, ornare sit amet, wisi. Aenean fermentum, elit eget tincidunt condimentum, eros ipsum rutrum orci, sagittis tempus lacus enim ac dui. <a href=\\\"#\\\">Donec non enim</a> in turpis pulvinar facilisis. Ut felis.</p><h2>Header Level 2</h2><ol><li>Lorem ipsum dolor sit amet, consectetuer adipiscing elit.</li><li>Aliquam tincidunt mauris eu risus.</li></ol><blockquote><p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vivamus magna. Cras in mi at felis aliquet congue. Ut a est eget ligula molestie gravida. Curabitur massa. Donec eleifend, libero at sagittis mollis, tellus est malesuada tellus, at luctus turpis elit sit amet quam. Vivamus pretium ornare est.</p></blockquote><h3>Header Level 3</h3><ul><li>Lorem ipsum dolor sit amet, consectetuer adipiscing elit.</li><li>Aliquam tincidunt mauris eu risus.</li></ul><pre><code>#header h1 a{display: block;width: 300px;height: 80px;}</code></pre>'),
+            published_at: new Date('2015-01-02'),
+            feature_image: '/content/images/2018/hey.jpg'
         },
         {
             id: ObjectId.generate(),
             title: 'Short and Sweet',
             slug: 'short-and-sweet',
             mobiledoc: DataGenerator.markdownToMobiledoc('## testing\n\nmctesters\n\n- test\n- line\n- items'),
-            html: '<div class=\"kg-card-markdown\"><h2 id=\"testing\">testing</h2>\n<p>mctesters</p>\n<ul>\n<li>test</li>\n<li>line</li>\n<li>items</li>\n</ul>\n</div>',
+            html: '<h2 id=\"testing\">testing</h2>\n<p>mctesters</p>\n<ul>\n<li>test</li>\n<li>line</li>\n<li>items</li>\n</ul>\n',
             plaintext: 'testing\nmctesters\n\n * test\n * line\n * items',
             feature_image: 'http://placekitten.com/500/200',
             meta_description: 'test stuff',
@@ -530,6 +531,23 @@ DataGenerator.forKnex = (function () {
         };
     }
 
+    function createUsersRoles(userId, roleId) {
+        return {
+            id: ObjectId.generate(),
+            user_id: userId,
+            role_id: roleId
+        };
+    }
+
+    function createPostsAuthors(postId, authorId, sort_order = 0) {
+        return {
+            id: ObjectId.generate(),
+            author_id: authorId,
+            post_id: postId,
+            sort_order: sort_order
+        };
+    }
+
     function createAppField(overrides) {
         var newObj = _.cloneDeep(overrides);
 
@@ -552,6 +570,31 @@ DataGenerator.forKnex = (function () {
             app_id: DataGenerator.Content.apps[0].id,
             created_by: DataGenerator.Content.users[0].id,
             created_at: new Date()
+        });
+    }
+
+    function createSubscriber(overrides) {
+        const newObj = _.cloneDeep(overrides);
+
+        return _.defaults(newObj, {
+            id: ObjectId.generate(),
+            email: 'subscriber@ghost.org'
+        });
+    }
+
+    function createSetting(overrides) {
+        const newObj = _.cloneDeep(overrides);
+
+        return _.defaults(newObj, {
+            id: ObjectId.generate(),
+            uuid: "95ce1c53-69b0-4f5f-be91-d3aeb39046b5",
+            key: "title",
+            value: null,
+            type: "blog",
+            created_at: new Date(),
+            created_by: DataGenerator.Content.users[0].id,
+            updated_at: new Date(),
+            updated_by: DataGenerator.Content.users[0].id
         });
     }
 
@@ -744,7 +787,7 @@ DataGenerator.forKnex = (function () {
         {
             id: ObjectId.generate(),
             post_id: DataGenerator.Content.posts[3].id,
-            author_id: DataGenerator.Content.users[2].id,
+            author_id: _.find(DataGenerator.Content.users, {email: 'jbOgendAth@example.com'}).id,
             sort_order: 1
         },
         {
@@ -799,6 +842,8 @@ DataGenerator.forKnex = (function () {
         createGenericPost: createGenericPost,
         createTag: createTag,
         createUser: createUser,
+        createUsersRoles: createUsersRoles,
+        createPostsAuthors: createPostsAuthors,
         createClient: createClient,
         createGenericUser: createGenericUser,
         createBasic: createBasic,
@@ -807,9 +852,10 @@ DataGenerator.forKnex = (function () {
         createPostsTags: createPostsTags,
         createApp: createBasic,
         createAppField: createAppField,
+        createSetting: createSetting,
         createAppSetting: createAppSetting,
         createToken: createToken,
-        createSubscriber: createBasic,
+        createSubscriber: createSubscriber,
         createInvite: createInvite,
         createTrustedDomain: createTrustedDomain,
         createWebhook: createWebhook,

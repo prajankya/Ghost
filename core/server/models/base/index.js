@@ -283,7 +283,7 @@ ghostBookshelf.Model = ghostBookshelf.Model.extend({
      */
     onUpdating: function onUpdating(newObj, attr, options) {
         if (schema.tables[this.tableName].hasOwnProperty('updated_by')) {
-            if (!options.importing) {
+            if (!options.importing && !options.migrating) {
                 this.set('updated_by', this.contextUser(options));
             }
         }
@@ -304,7 +304,9 @@ ghostBookshelf.Model = ghostBookshelf.Model.extend({
 
         // CASE: do not allow setting only the `updated_at` field, exception: importing
         if (schema.tables[this.tableName].hasOwnProperty('updated_at') && !options.importing) {
-            if (newObj.hasChanged() && Object.keys(newObj.changed).length === 1 && newObj.changed.updated_at) {
+            if (options.migrating) {
+                newObj.set('updated_at', newObj.previous('updated_at'));
+            } else if (newObj.hasChanged() && Object.keys(newObj.changed).length === 1 && newObj.changed.updated_at) {
                 newObj.set('updated_at', newObj.previous('updated_at'));
             }
         }
@@ -497,7 +499,7 @@ ghostBookshelf.Model = ghostBookshelf.Model.extend({
      */
     permittedOptions: function permittedOptions(methodName) {
         if (methodName === 'toJSON') {
-            return ['shallow', 'withRelated', 'context', 'columns'];
+            return ['shallow', 'withRelated', 'context', 'columns', 'absolute_urls'];
         }
 
         // terms to whitelist for all methods.
@@ -657,7 +659,10 @@ ghostBookshelf.Model = ghostBookshelf.Model.extend({
      * information about the request (page, limit), along with the
      * info needed for pagination (pages, total).
      *
-     * @TODO: This model function does return JSON O_O.
+     * @TODO:
+     *   - this model function does return JSON O_O
+     *   - if you refactor that out, you should double check the allowed filter options
+     *   - because `toJSON` is called in here and is using the filtered options for the `findPage` function
      *
      * **response:**
      *
@@ -1001,44 +1006,7 @@ ghostBookshelf.Model = ghostBookshelf.Model.extend({
                 User: 'users',
                 Tag: 'tags'
             };
-            const reducedFields = options.reducedFields;
-            const exclude = {
-                Post: [
-                    'title',
-                    'mobiledoc',
-                    'html',
-                    'plaintext',
-                    'amp',
-                    'codeinjection_head',
-                    'codeinjection_foot',
-                    'meta_title',
-                    'meta_description',
-                    'custom_excerpt',
-                    'og_image',
-                    'og_title',
-                    'og_description',
-                    'twitter_image',
-                    'twitter_title',
-                    'twitter_description',
-                    'custom_template'
-                ],
-                User: [
-                    'bio',
-                    'website',
-                    'location',
-                    'facebook',
-                    'twitter',
-                    'accessibility',
-                    'meta_title',
-                    'meta_description',
-                    'tour'
-                ],
-                Tag: [
-                    'description',
-                    'meta_title',
-                    'meta_description'
-                ]
-            };
+            const exclude = options.exclude;
             const filter = options.filter;
             const withRelated = options.withRelated;
             const withRelatedFields = options.withRelatedFields;
@@ -1071,11 +1039,19 @@ ghostBookshelf.Model = ghostBookshelf.Model.extend({
 
             let query = ghostBookshelf.knex(tableNames[modelName]);
 
+            if (options.offset) {
+                query.offset(options.offset);
+            }
+
+            if (options.limit) {
+                query.limit(options.limit);
+            }
+
             // exclude fields if enabled
-            if (reducedFields) {
+            if (exclude) {
                 const toSelect = _.keys(schema.tables[tableNames[modelName]]);
 
-                _.each(exclude[modelName], (key) => {
+                _.each(exclude, (key) => {
                     if (toSelect.indexOf(key) !== -1) {
                         toSelect.splice(toSelect.indexOf(key), 1);
                     }
@@ -1089,6 +1065,11 @@ ghostBookshelf.Model = ghostBookshelf.Model.extend({
 
             return query.then((objects) => {
                 debug('fetched', modelName, filter);
+
+                if (!objects.length) {
+                    debug('No more entries found');
+                    return Promise.resolve([]);
+                }
 
                 let props = {};
 

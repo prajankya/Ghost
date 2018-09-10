@@ -14,6 +14,7 @@ const express = require('express'),
     tmpdir = require('os').tmpdir,
     upload = require('multer')({dest: tmpdir()}),
     validation = require('../middleware/validation'),
+    image = require('../middleware/image'),
 
     // Temporary
     // @TODO find a more appy way to do this!
@@ -49,6 +50,14 @@ module.exports = function apiRoutes() {
     ], api.http(api.schedules.publishPost));
 
     // ## Settings
+    apiRouter.get('/settings/routes/yaml', mw.authenticatePrivate, api.http(api.settings.download));
+    apiRouter.post('/settings/routes/yaml',
+        mw.authenticatePrivate,
+        upload.single('routes'),
+        validation.upload({type: 'routes'}),
+        api.http(api.settings.upload)
+    );
+
     apiRouter.get('/settings', mw.authenticatePrivate, api.http(api.settings.browse));
     apiRouter.get('/settings/:key', mw.authenticatePrivate, api.http(api.settings.read));
     apiRouter.put('/settings', mw.authenticatePrivate, api.http(api.settings.edit));
@@ -174,6 +183,7 @@ module.exports = function apiRoutes() {
         mw.authenticatePrivate,
         upload.single('uploadimage'),
         validation.upload({type: 'images'}),
+        image.normalize,
         api.http(api.uploads.add)
     );
 

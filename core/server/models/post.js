@@ -3,15 +3,14 @@ var _ = require('lodash'),
     uuid = require('uuid'),
     moment = require('moment'),
     Promise = require('bluebird'),
-    ObjectId = require('bson-objectid'),
     sequence = require('../lib/promise/sequence'),
     common = require('../lib/common'),
     htmlToText = require('html-to-text'),
     ghostBookshelf = require('./base'),
     config = require('../config'),
-    labs = require('../services/labs'),
     converters = require('../lib/mobiledoc/converters'),
     urlService = require('../services/url'),
+    {urlFor, makeAbsoluteUrls} = require('../services/url/utils'),
     relations = require('./relations'),
     Post,
     Posts;
@@ -199,7 +198,6 @@ Post = ghostBookshelf.Model.extend({
             prevSlug = this.previous('slug'),
             publishedAt = this.get('published_at'),
             publishedAtHasChanged = this.hasDateChanged('published_at', {beforeWrite: true}),
-            mobiledoc = JSON.parse(this.get('mobiledoc') || null),
             generatedFields = ['html', 'plaintext'],
             tagsToSave,
             ops = [];
@@ -210,6 +208,12 @@ Post = ghostBookshelf.Model.extend({
             return Promise.reject(new common.errors.ValidationError({
                 message: common.i18n.t('errors.models.post.isAlreadyPublished', {key: 'status'})
             }));
+        }
+
+        if (options.method === 'insert') {
+            if (!this.get('comment_id')) {
+                this.set('comment_id', this.id);
+            }
         }
 
         // CASE: both page and post can get scheduled
@@ -257,42 +261,21 @@ Post = ghostBookshelf.Model.extend({
         ghostBookshelf.Model.prototype.onSaving.call(this, model, attr, options);
 
         // do not allow generated fields to be overridden via the API
-        generatedFields.forEach((field) => {
-            if (this.hasChanged(field)) {
-                this.set(field, this.previous(field));
-            }
-        });
-
-        // render mobiledoc to HTML. Switch render version if Koenig is enabled
-        // or has been edited with Koenig and is no longer compatible with the
-        // Ghost 1.0 markdown-only renderer
-        // TODO: re-render all content and remove the version toggle for Ghost 2.0
-        if (mobiledoc) {
-            let version = 1;
-            let koenigEnabled = labs.isSet('koenigEditor') === true;
-
-            let mobiledocIsCompatibleWithV1 = function mobiledocIsCompatibleWithV1(doc) {
-                if (doc
-                    && doc.markups.length === 0
-                    && doc.cards.length === 1
-                    && doc.cards[0][0].match(/(?:card-)?markdown/)
-                    && doc.sections.length === 1
-                    && doc.sections[0].length === 2
-                    && doc.sections[0][0] === 10
-                    && doc.sections[0][1] === 0
-                ) {
-                    return true;
+        if (!options.migrating) {
+            generatedFields.forEach((field) => {
+                if (this.hasChanged(field)) {
+                    this.set(field, this.previous(field));
                 }
+            });
+        }
 
-                return false;
-            };
+        if (!this.get('mobiledoc')) {
+            this.set('mobiledoc', JSON.stringify(converters.mobiledocConverter.blankStructure()));
+        }
 
-            if (koenigEnabled || !mobiledocIsCompatibleWithV1(mobiledoc)) {
-                version = 2;
-            }
-
-            let html = converters.mobiledocConverter.render(mobiledoc, version);
-            this.set('html', html);
+        // render mobiledoc to HTML
+        if (this.hasChanged('mobiledoc') || !this.get('html')) {
+            this.set('html', converters.mobiledocConverter.render(JSON.parse(this.get('mobiledoc'))));
         }
 
         if (this.hasChanged('html') || !this.get('plaintext')) {
@@ -455,11 +438,10 @@ Post = ghostBookshelf.Model.extend({
 
     toJSON: function toJSON(unfilteredOptions) {
         var options = Post.filterOptions(unfilteredOptions, 'toJSON'),
-            attrs = ghostBookshelf.Model.prototype.toJSON.call(this, options),
-            oldPostId = attrs.amp,
-            commentId;
+            attrs = ghostBookshelf.Model.prototype.toJSON.call(this, options);
 
         attrs = this.formatsToJSON(attrs, options);
+        attrs.url = urlService.getUrlByResourceId(attrs.id);
 
         // If the current column settings allow it...
         if (!options.columns || (options.columns && options.columns.indexOf('primary_tag') > -1)) {
@@ -471,31 +453,27 @@ Post = ghostBookshelf.Model.extend({
             }
         }
 
-        if (!options.columns || (options.columns && options.columns.indexOf('url') > -1)) {
-            attrs.url = urlService.getUrlByResourceId(attrs.id);
+        if (options.columns && !options.columns.includes('url')) {
+            delete attrs.url;
         }
 
-        if (oldPostId) {
-            // CASE: You create a new post on 1.X, you enable disqus. You export your content, you import your content on a different instance.
-            // This time, the importer remembers your old post id in the amp field as ObjectId.
-            if (ObjectId.isValid(oldPostId)) {
-                commentId = oldPostId;
-            } else {
-                oldPostId = Number(oldPostId);
-
-                // CASE: You import an old post id from your LTS blog. Stored in the amp field.
-                if (!isNaN(oldPostId)) {
-                    commentId = oldPostId.toString();
-                } else {
-                    commentId = attrs.id;
-                }
+        if (options && options.context && options.context.public && options.absolute_urls) {
+            if (attrs.feature_image) {
+                attrs.feature_image = urlFor('image', {image: attrs.feature_image}, true);
             }
-        } else {
-            commentId = attrs.id;
+            if (attrs.og_image) {
+                attrs.og_image = urlFor('image', {image: attrs.og_image}, true);
+            }
+            if (attrs.twitter_image) {
+                attrs.twitter_image = urlFor('image', {image: attrs.twitter_image}, true);
+            }
+            if (attrs.html) {
+                attrs.html = makeAbsoluteUrls(attrs.html, urlFor('home', true), attrs.url).html();
+            }
+            if (attrs.url) {
+                attrs.url = urlFor({relativeUrl: attrs.url}, true);
+            }
         }
-
-        // NOTE: we remember the old post id because of disqus
-        attrs.comment_id = commentId;
 
         return attrs;
     },
@@ -510,7 +488,7 @@ Post = ghostBookshelf.Model.extend({
         return options.context && options.context.public ? 'page:false' : 'page:false+status:published';
     }
 }, {
-    allowedFormats: ['mobiledoc', 'html', 'plaintext', 'amp'],
+    allowedFormats: ['mobiledoc', 'html', 'plaintext'],
 
     orderDefaultOptions: function orderDefaultOptions() {
         return {
@@ -576,13 +554,13 @@ Post = ghostBookshelf.Model.extend({
      * @return {Array} Keys allowed in the `options` hash of the model's method.
      */
     permittedOptions: function permittedOptions(methodName) {
-        var options = ghostBookshelf.Model.permittedOptions(),
+        var options = ghostBookshelf.Model.permittedOptions(methodName),
 
             // whitelists for the `options` hash argument on methods, by method name.
             // these are the only options that can be passed to Bookshelf / Knex.
             validOptions = {
                 findOne: ['columns', 'importing', 'withRelated', 'require'],
-                findPage: ['page', 'limit', 'columns', 'filter', 'order', 'status', 'staticPages'],
+                findPage: ['page', 'limit', 'columns', 'filter', 'order', 'status', 'staticPages', 'absolute_urls'],
                 findAll: ['columns', 'filter'],
                 destroy: ['destroyAll']
             };
